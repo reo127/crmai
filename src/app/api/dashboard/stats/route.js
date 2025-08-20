@@ -3,6 +3,7 @@ import connectToDatabase from '@/lib/mongodb';
 import Lead from '@/models/Lead';
 import Communication from '@/models/Communication';
 import { authenticateUser } from '@/lib/auth';
+import mongoose from 'mongoose';
 
 export async function GET(request) {
   try {
@@ -13,8 +14,12 @@ export async function GET(request) {
 
     await connectToDatabase();
 
-    // Get all leads assigned to this user
-    const leads = await Lead.find({ assignedTo: user.userId });
+    // Get all leads assigned to this user (or all leads for admin)
+    let query = {};
+    if (user.role !== 'admin') {
+      query.assignedTo = new mongoose.Types.ObjectId(user.userId);
+    }
+    const leads = await Lead.find(query);
     
     // Calculate statistics
     const totalLeads = leads.length;

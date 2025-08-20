@@ -5,6 +5,7 @@ import Product from '@/models/Product';
 import Source from '@/models/Source';
 import User from '@/models/User';
 import { authenticateUser } from '@/lib/auth';
+import mongoose from 'mongoose';
 
 export async function GET(request) {
   try {
@@ -19,8 +20,13 @@ export async function GET(request) {
     const limit = parseInt(searchParams.get('limit')) || 50;
     const skip = parseInt(searchParams.get('skip')) || 0;
 
-    // Get leads assigned to this user
-    const leads = await Lead.find({ assignedTo: user.userId })
+    // Get leads assigned to this user (or all leads for admin)
+    let query = {};
+    if (user.role !== 'admin') {
+      query.assignedTo = new mongoose.Types.ObjectId(user.userId);
+    }
+    
+    const leads = await Lead.find(query)
       .populate('productInterest', 'name')
       .populate('source', 'name')
       .sort({ updatedAt: -1 })
@@ -45,7 +51,7 @@ export async function GET(request) {
     }));
 
     // Get total count for pagination
-    const totalCount = await Lead.countDocuments({ assignedTo: user.userId });
+    const totalCount = await Lead.countDocuments(query);
 
     return NextResponse.json({ 
       leads: formattedLeads,
