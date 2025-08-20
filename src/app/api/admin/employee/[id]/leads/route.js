@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import connectToDatabase from '@/lib/mongodb';
 import Lead from '@/models/Lead';
+import Product from '@/models/Product';
+import Source from '@/models/Source';
+import User from '@/models/User';
 import { authenticateUser } from '@/lib/auth';
 
 export async function GET(request, { params }) {
