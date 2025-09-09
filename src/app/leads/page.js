@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import Navbar from '@/components/layout/Navbar';
 import Button from '@/components/ui/Button';
@@ -8,6 +9,7 @@ import Modal from '@/components/ui/Modal';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 
 export default function LeadsPage() {
+  const router = useRouter();
   const [leads, setLeads] = useState([]);
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -96,6 +98,10 @@ export default function LeadsPage() {
   const handleAddNote = (lead) => {
     setSelectedLead(lead);
     setShowNoteModal(true);
+  };
+
+  const handleLeadClick = (leadId) => {
+    router.push(`/leads/${leadId}`);
   };
 
   if (loading && leads.length === 0) {
@@ -228,10 +234,14 @@ export default function LeadsPage() {
                         </tr>
                       ) : (
                         leads.map((lead) => (
-                          <tr key={lead._id} className="hover:bg-gray-50">
+                          <tr 
+                            key={lead._id} 
+                            className="hover:bg-gray-50 cursor-pointer transition-colors"
+                            onClick={() => handleLeadClick(lead._id)}
+                          >
                             <td className="px-6 py-4 whitespace-nowrap">
                               <div>
-                                <div className="text-sm font-medium text-gray-900">
+                                <div className="text-sm font-medium text-gray-900 hover:text-indigo-600 transition-colors">
                                   {lead.name}
                                 </div>
                                 {lead.companyName && (
@@ -265,17 +275,24 @@ export default function LeadsPage() {
                                 <a
                                   href={`tel:${lead.phone}`}
                                   className="text-green-600 hover:text-green-900 px-2 py-1 rounded bg-green-50 hover:bg-green-100"
+                                  onClick={(e) => e.stopPropagation()}
                                 >
                                   📞 Call
                                 </a>
                                 <button
-                                  onClick={() => handleStatusUpdate(lead)}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleStatusUpdate(lead);
+                                  }}
                                   className="text-indigo-600 hover:text-indigo-900 px-2 py-1 rounded bg-indigo-50 hover:bg-indigo-100"
                                 >
                                   Update Status
                                 </button>
                                 <button
-                                  onClick={() => handleAddNote(lead)}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleAddNote(lead);
+                                  }}
                                   className="text-blue-600 hover:text-blue-900 px-2 py-1 rounded bg-blue-50 hover:bg-blue-100"
                                 >
                                   Add Note
@@ -715,7 +732,7 @@ function StatusUpdateModal({ isOpen, onClose, lead, onSuccess }) {
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={`Update Status: ${lead?.name}`} size="lg">
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-4 text-black">
         {error && (
           <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
             {error}

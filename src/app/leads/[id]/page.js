@@ -11,10 +11,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 export default function LeadDetailPage() {
   const [lead, setLead] = useState(null);
   const [interactions, setInteractions] = useState([]);
+  const [allLeads, setAllLeads] = useState([]);
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [leadsLoading, setLeadsLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [showInteractionModal, setShowInteractionModal] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const router = useRouter();
   const params = useParams();
 
@@ -24,6 +27,7 @@ export default function LeadDetailPage() {
       setUser(JSON.parse(userData));
     }
     fetchLead();
+    fetchAllLeads();
   }, [params.id]);
 
   const fetchLead = async () => {
@@ -42,6 +46,23 @@ export default function LeadDetailPage() {
       router.push('/leads');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchAllLeads = async () => {
+    try {
+      setLeadsLoading(true);
+      const response = await fetch('/api/leads?limit=100', {
+        credentials: 'include',
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setAllLeads(data.leads);
+      }
+    } catch (error) {
+      console.error('Error fetching all leads:', error);
+    } finally {
+      setLeadsLoading(false);
     }
   };
 
@@ -104,10 +125,17 @@ export default function LeadDetailPage() {
     return colors[priority] || 'bg-gray-100 text-gray-800';
   };
 
+  const handleLeadNavigation = (leadId) => {
+    if (leadId !== params.id) {
+      router.push(`/leads/${leadId}`);
+    }
+    setSidebarOpen(false);
+  };
+
   if (loading) {
     return (
       <ProtectedRoute>
-        <div className="min-h-screen bg-gray-50">
+        <div className="min-h-screen bg-gray-50 text-black">
           <Navbar />
           <div className="flex items-center justify-center h-64">
             <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-indigo-600"></div>
@@ -120,7 +148,7 @@ export default function LeadDetailPage() {
   if (!lead) {
     return (
       <ProtectedRoute>
-        <div className="min-h-screen bg-gray-50">
+        <div className="min-h-screen bg-gray-50 text-black">
           <Navbar />
           <div className="text-center py-12">
             <h2 className="text-2xl font-bold text-gray-900">Lead not found</h2>
@@ -132,41 +160,128 @@ export default function LeadDetailPage() {
 
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gray-50 text-black">
         <Navbar />
-        <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-          <div className="px-4 py-6 sm:px-0">
-            {/* Header */}
-            <div className="flex justify-between items-center mb-6">
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">{lead.name}</h1>
-                <p className="text-gray-600">{lead.companyName}</p>
-              </div>
-              <div className="flex space-x-3">
+        <div className="flex">
+          {/* Sidebar */}
+          <div className={`${sidebarOpen ? 'block' : 'hidden'} lg:block lg:w-80 bg-white shadow-lg border-r border-gray-200 h-screen overflow-y-auto fixed lg:sticky top-0 z-40 text-black`}>
+            <div className="p-4 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-gray-900">All Leads</h2>
                 <Button
                   variant="outline"
-                  onClick={() => router.push('/leads')}
+                  size="sm"
+                  className="lg:hidden"
+                  onClick={() => setSidebarOpen(false)}
                 >
-                  Back to Leads
+                  ✕
                 </Button>
-                {!editing && (
-                  <Button onClick={() => setEditing(true)}>
-                    Edit Lead
-                  </Button>
-                )}
-                <Button
-                  variant="success"
-                  onClick={() => setShowInteractionModal(true)}
-                >
-                  📞 Add Interaction
-                </Button>
-                {user?.role === 'admin' && (
-                  <Button variant="danger" onClick={handleDeleteLead}>
-                    Delete Lead
-                  </Button>
-                )}
               </div>
+              <p className="text-sm text-gray-500 mt-1">{allLeads.length} total leads</p>
             </div>
+            
+            <div className="p-2">
+              {leadsLoading ? (
+                <div className="flex justify-center py-4">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600"></div>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  {allLeads.map((leadItem) => (
+                    <div
+                      key={leadItem._id}
+                      onClick={() => handleLeadNavigation(leadItem._id)}
+                      className={`p-3 rounded-lg cursor-pointer transition-colors ${
+                        leadItem._id === params.id
+                          ? 'bg-indigo-50 border border-indigo-200'
+                          : 'hover:bg-gray-50 border border-transparent'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm font-medium truncate ${
+                            leadItem._id === params.id ? 'text-indigo-900' : 'text-gray-900'
+                          }`}>
+                            {leadItem.name}
+                          </p>
+                          {leadItem.companyName && (
+                            <p className="text-xs text-gray-500 truncate mt-1">
+                              {leadItem.companyName}
+                            </p>
+                          )}
+                          <p className="text-xs text-gray-500 mt-1">{leadItem.phone}</p>
+                        </div>
+                        <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(leadItem.status)}`}>
+                          {leadItem.status}
+                        </span>
+                      </div>
+                      <div className="mt-2 flex items-center justify-between">
+                        <span className="text-xs text-gray-500">
+                          ${leadItem.leadValue?.toLocaleString() || '0'}
+                        </span>
+                        <span className={`px-2 py-1 text-xs rounded-full ${getPriorityColor(leadItem.priority)}`}>
+                          {leadItem.priority}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Overlay for mobile */}
+          {sidebarOpen && (
+            <div 
+              className="fixed inset-0 bg-black bg-opacity-50 z-30 lg:hidden"
+              onClick={() => setSidebarOpen(false)}
+            />
+          )}
+
+          {/* Main Content */}
+          <div className="flex-1 lg:ml-0">
+            <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+              <div className="px-4 py-6 sm:px-0">
+                {/* Header */}
+                <div className="flex justify-between items-center mb-6">
+                  <div className="flex items-center">
+                    <Button
+                      variant="outline"
+                      className="lg:hidden mr-3"
+                      onClick={() => setSidebarOpen(true)}
+                    >
+                      ☰ Leads
+                    </Button>
+                    <div>
+                      <h1 className="text-2xl font-bold text-gray-900">{lead.name}</h1>
+                      <p className="text-gray-600">{lead.companyName}</p>
+                    </div>
+                  </div>
+                  <div className="flex space-x-3">
+                    <Button
+                      variant="outline"
+                      onClick={() => router.push('/leads')}
+                    >
+                      Back to Leads
+                    </Button>
+                    {!editing && (
+                      <Button onClick={() => setEditing(true)}>
+                        Edit Lead
+                      </Button>
+                    )}
+                    <Button
+                      variant="success"
+                      onClick={() => setShowInteractionModal(true)}
+                    >
+                      📞 Add Interaction
+                    </Button>
+                    {user?.role === 'admin' && (
+                      <Button variant="danger" onClick={handleDeleteLead}>
+                        Delete Lead
+                      </Button>
+                    )}
+                  </div>
+                </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Lead Information */}
@@ -303,6 +418,7 @@ export default function LeadDetailPage() {
             </div>
           </div>
         </div>
+        </div>
 
         {/* Add Interaction Modal */}
         <AddInteractionModal
@@ -314,6 +430,7 @@ export default function LeadDetailPage() {
             fetchLead();
           }}
         />
+        </div>
       </div>
     </ProtectedRoute>
   );
