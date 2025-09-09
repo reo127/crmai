@@ -17,6 +17,9 @@ export default function LeadsPage() {
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [selectedLead, setSelectedLead] = useState(null);
+  const [selectedLeads, setSelectedLeads] = useState(new Set());
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+  const [showBulkStatusModal, setShowBulkStatusModal] = useState(false);
   const [filters, setFilters] = useState({
     status: 'all',
     search: '',
@@ -102,6 +105,28 @@ export default function LeadsPage() {
 
   const handleLeadClick = (leadId) => {
     router.push(`/leads/${leadId}`);
+  };
+
+  const handleSelectAll = () => {
+    if (selectedLeads.size === leads.length) {
+      setSelectedLeads(new Set());
+    } else {
+      setSelectedLeads(new Set(leads.map(lead => lead._id)));
+    }
+  };
+
+  const handleSelectLead = (leadId) => {
+    const newSelected = new Set(selectedLeads);
+    if (newSelected.has(leadId)) {
+      newSelected.delete(leadId);
+    } else {
+      newSelected.add(leadId);
+    }
+    setSelectedLeads(newSelected);
+  };
+
+  const clearSelection = () => {
+    setSelectedLeads(new Set());
   };
 
   if (loading && leads.length === 0) {
@@ -192,6 +217,43 @@ export default function LeadsPage() {
               </CardContent>
             </Card>
 
+            {/* Bulk Actions Bar */}
+            {selectedLeads.size > 0 && (
+              <Card className="mb-4">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-4">
+                      <span className="text-sm font-medium text-gray-700">
+                        {selectedLeads.size} lead{selectedLeads.size !== 1 ? 's' : ''} selected
+                      </span>
+                      <button
+                        onClick={clearSelection}
+                        className="text-sm text-gray-500 hover:text-gray-700"
+                      >
+                        Clear selection
+                      </button>
+                    </div>
+                    <div className="flex space-x-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => setShowBulkStatusModal(true)}
+                        className="text-indigo-600 border-indigo-300 hover:bg-indigo-50"
+                      >
+                        Change Status
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => setShowBulkDeleteModal(true)}
+                        className="text-red-600 border-red-300 hover:bg-red-50"
+                      >
+                        Delete Selected
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Leads Table */}
             <Card>
               <CardHeader>
@@ -205,6 +267,14 @@ export default function LeadsPage() {
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                       <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-12">
+                          <input
+                            type="checkbox"
+                            checked={selectedLeads.size === leads.length && leads.length > 0}
+                            onChange={handleSelectAll}
+                            className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                          />
+                        </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Name
                         </th>
@@ -228,7 +298,7 @@ export default function LeadsPage() {
                     <tbody className="bg-white divide-y divide-gray-200">
                       {leads.length === 0 ? (
                         <tr>
-                          <td colSpan="6" className="px-6 py-4 text-center text-gray-500">
+                          <td colSpan="7" className="px-6 py-4 text-center text-gray-500">
                             No leads found
                           </td>
                         </tr>
@@ -239,6 +309,15 @@ export default function LeadsPage() {
                             className="hover:bg-gray-50 cursor-pointer transition-colors"
                             onClick={() => handleLeadClick(lead._id)}
                           >
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <input
+                                type="checkbox"
+                                checked={selectedLeads.has(lead._id)}
+                                onChange={() => handleSelectLead(lead._id)}
+                                onClick={(e) => e.stopPropagation()}
+                                className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                              />
+                            </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <div>
                                 <div className="text-sm font-medium text-gray-900 hover:text-indigo-600 transition-colors">
@@ -398,6 +477,30 @@ export default function LeadsPage() {
           lead={selectedLead}
           onSuccess={() => {
             setShowNoteModal(false);
+            fetchLeads();
+          }}
+        />
+
+        {/* Bulk Delete Modal */}
+        <BulkDeleteModal
+          isOpen={showBulkDeleteModal}
+          onClose={() => setShowBulkDeleteModal(false)}
+          selectedLeads={selectedLeads}
+          onSuccess={() => {
+            setShowBulkDeleteModal(false);
+            clearSelection();
+            fetchLeads();
+          }}
+        />
+
+        {/* Bulk Status Change Modal */}
+        <BulkStatusModal
+          isOpen={showBulkStatusModal}
+          onClose={() => setShowBulkStatusModal(false)}
+          selectedLeads={selectedLeads}
+          onSuccess={() => {
+            setShowBulkStatusModal(false);
+            clearSelection();
             fetchLeads();
           }}
         />
@@ -980,6 +1083,186 @@ function AddNoteModal({ isOpen, onClose, lead, onSuccess }) {
           </Button>
           <Button type="submit" disabled={loading}>
             {loading ? 'Adding...' : 'Add Communication'}
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+// Bulk Delete Modal Component
+function BulkDeleteModal({ isOpen, onClose, selectedLeads, onSuccess }) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleDelete = async () => {
+    setLoading(true);
+    setError('');
+
+    try {
+      const leadIds = Array.from(selectedLeads);
+      const response = await fetch('/api/leads/bulk-delete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ leadIds }),
+      });
+
+      if (response.ok) {
+        onSuccess();
+      } else {
+        const data = await response.json();
+        setError(data.error || 'Failed to delete leads');
+      }
+    } catch (error) {
+      setError('Network error. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Delete Selected Leads" size="md">
+      <div className="space-y-4">
+        {error && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+            {error}
+          </div>
+        )}
+
+        <div className="text-sm text-gray-600">
+          <p className="mb-2">
+            Are you sure you want to delete <strong>{selectedLeads.size}</strong> selected lead{selectedLeads.size !== 1 ? 's' : ''}?
+          </p>
+          <p className="text-red-600">
+            <strong>Warning:</strong> This action cannot be undone. All associated data including notes and communications will be permanently deleted.
+          </p>
+        </div>
+
+        <div className="flex justify-end space-x-3 pt-4">
+          <Button type="button" variant="outline" onClick={onClose} disabled={loading}>
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            onClick={handleDelete}
+            disabled={loading}
+            className="bg-red-600 hover:bg-red-700 text-white"
+          >
+            {loading ? 'Deleting...' : 'Delete Leads'}
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// Bulk Status Change Modal Component
+function BulkStatusModal({ isOpen, onClose, selectedLeads, onSuccess }) {
+  const [status, setStatus] = useState('');
+  const [notes, setNotes] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleStatusChange = async (e) => {
+    e.preventDefault();
+    if (!status) return;
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const leadIds = Array.from(selectedLeads);
+      const response = await fetch('/api/leads/bulk-status', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          leadIds,
+          status,
+          notes: notes.trim() || undefined,
+        }),
+      });
+
+      if (response.ok) {
+        onSuccess();
+        setStatus('');
+        setNotes('');
+      } else {
+        const data = await response.json();
+        setError(data.error || 'Failed to update status');
+      }
+    } catch (error) {
+      setError('Network error. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const statusOptions = [
+    { value: '', label: 'Select new status...', disabled: true },
+    { value: 'New', label: 'New' },
+    { value: 'Contacted', label: 'Contacted' },
+    { value: 'In Progress', label: 'In Progress' },
+    { value: 'Follow-up', label: 'Follow-up' },
+    { value: 'Converted', label: 'Converted' },
+    { value: 'Lost', label: 'Lost' },
+  ];
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Change Status for Selected Leads" size="lg">
+      <form onSubmit={handleStatusChange} className="space-y-4 text-black">
+        {error && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+            {error}
+          </div>
+        )}
+
+        <div className="text-sm text-gray-600 mb-4">
+          Updating status for <strong>{selectedLeads.size}</strong> selected lead{selectedLeads.size !== 1 ? 's' : ''}.
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            New Status *
+          </label>
+          <select
+            value={status}
+            onChange={(e) => setStatus(e.target.value)}
+            required
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+          >
+            {statusOptions.map((option) => (
+              <option key={option.value} value={option.value} disabled={option.disabled}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Status Update Notes (Optional)
+          </label>
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={3}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+            placeholder="Add any notes about this status change..."
+          />
+        </div>
+
+        <div className="flex justify-end space-x-3 pt-4">
+          <Button type="button" variant="outline" onClick={onClose} disabled={loading}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={loading || !status}>
+            {loading ? 'Updating...' : 'Update Status'}
           </Button>
         </div>
       </form>
