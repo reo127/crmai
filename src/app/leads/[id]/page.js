@@ -21,38 +21,6 @@ export default function LeadDetailPage() {
   const router = useRouter();
   const params = useParams();
 
-  useEffect(() => {
-    const userData = localStorage.getItem('user');
-    if (userData) {
-      setUser(JSON.parse(userData));
-    }
-    fetchLead();
-    fetchAllLeads();
-  }, [params.id, fetchLead, fetchAllLeads]);
-
-  // Keyboard navigation
-  useEffect(() => {
-    const handleKeyPress = (e) => {
-      // Only handle if no modal is open and not in an input field
-      if (editing || showInteractionModal || 
-          e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || 
-          e.target.tagName === 'SELECT') {
-        return;
-      }
-
-      if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
-        e.preventDefault();
-        handlePreviousLead();
-      } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
-        e.preventDefault();
-        handleNextLead();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyPress);
-    return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [editing, showInteractionModal, handlePreviousLead, handleNextLead]);
-
   const fetchLead = useCallback(async () => {
     try {
       setLoading(true);
@@ -88,6 +56,72 @@ export default function LeadDetailPage() {
       setLeadsLoading(false);
     }
   }, []);
+
+  const getCurrentLeadIndex = useCallback(() => {
+    return allLeads.findIndex(lead => lead._id === params.id);
+  }, [allLeads, params.id]);
+
+  const getPreviousLead = useCallback(() => {
+    const currentIndex = getCurrentLeadIndex();
+    if (currentIndex > 0) {
+      return allLeads[currentIndex - 1];
+    }
+    return null;
+  }, [allLeads, getCurrentLeadIndex]);
+
+  const getNextLead = useCallback(() => {
+    const currentIndex = getCurrentLeadIndex();
+    if (currentIndex < allLeads.length - 1) {
+      return allLeads[currentIndex + 1];
+    }
+    return null;
+  }, [allLeads, getCurrentLeadIndex]);
+
+  const handlePreviousLead = useCallback(() => {
+    const previousLead = getPreviousLead();
+    if (previousLead) {
+      router.push(`/leads/${previousLead._id}`);
+    }
+  }, [getPreviousLead, router]);
+
+  const handleNextLead = useCallback(() => {
+    const nextLead = getNextLead();
+    if (nextLead) {
+      router.push(`/leads/${nextLead._id}`);
+    }
+  }, [getNextLead, router]);
+
+  useEffect(() => {
+    const userData = localStorage.getItem('user');
+    if (userData) {
+      setUser(JSON.parse(userData));
+    }
+    fetchLead();
+    fetchAllLeads();
+  }, [params.id, fetchLead, fetchAllLeads]);
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyPress = (e) => {
+      // Only handle if no modal is open and not in an input field
+      if (editing || showInteractionModal || 
+          e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || 
+          e.target.tagName === 'SELECT') {
+        return;
+      }
+
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        handlePreviousLead();
+      } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        handleNextLead();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [editing, showInteractionModal, handlePreviousLead, handleNextLead]);
 
   const handleUpdateLead = async (updatedData) => {
     try {
@@ -154,40 +188,6 @@ export default function LeadDetailPage() {
     }
     setSidebarOpen(false);
   };
-
-  const getCurrentLeadIndex = useCallback(() => {
-    return allLeads.findIndex(lead => lead._id === params.id);
-  }, [allLeads, params.id]);
-
-  const getPreviousLead = useCallback(() => {
-    const currentIndex = getCurrentLeadIndex();
-    if (currentIndex > 0) {
-      return allLeads[currentIndex - 1];
-    }
-    return null;
-  }, [allLeads, getCurrentLeadIndex]);
-
-  const getNextLead = useCallback(() => {
-    const currentIndex = getCurrentLeadIndex();
-    if (currentIndex < allLeads.length - 1) {
-      return allLeads[currentIndex + 1];
-    }
-    return null;
-  }, [allLeads, getCurrentLeadIndex]);
-
-  const handlePreviousLead = useCallback(() => {
-    const previousLead = getPreviousLead();
-    if (previousLead) {
-      router.push(`/leads/${previousLead._id}`);
-    }
-  }, [getPreviousLead, router]);
-
-  const handleNextLead = useCallback(() => {
-    const nextLead = getNextLead();
-    if (nextLead) {
-      router.push(`/leads/${nextLead._id}`);
-    }
-  }, [getNextLead, router]);
 
   if (loading) {
     return (
