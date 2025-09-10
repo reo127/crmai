@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import Navbar from '@/components/layout/Navbar';
@@ -28,9 +28,32 @@ export default function LeadDetailPage() {
     }
     fetchLead();
     fetchAllLeads();
-  }, [params.id]);
+  }, [params.id, fetchLead, fetchAllLeads]);
 
-  const fetchLead = async () => {
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyPress = (e) => {
+      // Only handle if no modal is open and not in an input field
+      if (editing || showInteractionModal || 
+          e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || 
+          e.target.tagName === 'SELECT') {
+        return;
+      }
+
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        handlePreviousLead();
+      } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        handleNextLead();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [editing, showInteractionModal, handlePreviousLead, handleNextLead]);
+
+  const fetchLead = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch(`/api/leads/${params.id}`);
@@ -47,9 +70,9 @@ export default function LeadDetailPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [params.id, router]);
 
-  const fetchAllLeads = async () => {
+  const fetchAllLeads = useCallback(async () => {
     try {
       setLeadsLoading(true);
       const response = await fetch('/api/leads?limit=100', {
@@ -64,7 +87,7 @@ export default function LeadDetailPage() {
     } finally {
       setLeadsLoading(false);
     }
-  };
+  }, []);
 
   const handleUpdateLead = async (updatedData) => {
     try {
@@ -131,6 +154,40 @@ export default function LeadDetailPage() {
     }
     setSidebarOpen(false);
   };
+
+  const getCurrentLeadIndex = useCallback(() => {
+    return allLeads.findIndex(lead => lead._id === params.id);
+  }, [allLeads, params.id]);
+
+  const getPreviousLead = useCallback(() => {
+    const currentIndex = getCurrentLeadIndex();
+    if (currentIndex > 0) {
+      return allLeads[currentIndex - 1];
+    }
+    return null;
+  }, [allLeads, getCurrentLeadIndex]);
+
+  const getNextLead = useCallback(() => {
+    const currentIndex = getCurrentLeadIndex();
+    if (currentIndex < allLeads.length - 1) {
+      return allLeads[currentIndex + 1];
+    }
+    return null;
+  }, [allLeads, getCurrentLeadIndex]);
+
+  const handlePreviousLead = useCallback(() => {
+    const previousLead = getPreviousLead();
+    if (previousLead) {
+      router.push(`/leads/${previousLead._id}`);
+    }
+  }, [getPreviousLead, router]);
+
+  const handleNextLead = useCallback(() => {
+    const nextLead = getNextLead();
+    if (nextLead) {
+      router.push(`/leads/${nextLead._id}`);
+    }
+  }, [getNextLead, router]);
 
   if (loading) {
     return (
@@ -253,7 +310,32 @@ export default function LeadDetailPage() {
                       ☰ Leads
                     </Button>
                     <div>
-                      <h1 className="text-2xl font-bold text-gray-900">{lead.name}</h1>
+                      <div className="flex items-center space-x-3">
+                        <h1 className="text-2xl font-bold text-gray-900">{lead.name}</h1>
+                        <div className="flex items-center space-x-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handlePreviousLead}
+                            disabled={!getPreviousLead() || leadsLoading}
+                            className="px-2 py-1"
+                          >
+                            ← Previous
+                          </Button>
+                          <span className="text-sm text-gray-500" title="Use arrow keys to navigate">
+                            {getCurrentLeadIndex() + 1} of {allLeads.length}
+                          </span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleNextLead}
+                            disabled={!getNextLead() || leadsLoading}
+                            className="px-2 py-1"
+                          >
+                            Next →
+                          </Button>
+                        </div>
+                      </div>
                       <p className="text-gray-600">{lead.companyName}</p>
                     </div>
                   </div>
@@ -296,7 +378,6 @@ export default function LeadDetailPage() {
                         lead={lead}
                         onSave={handleUpdateLead}
                         onCancel={() => setEditing(false)}
-                        userRole={user?.role}
                       />
                     ) : (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -379,7 +460,7 @@ export default function LeadDetailPage() {
               </div>
 
               {/* Quick Actions */}
-              <div>
+              <div className="space-y-6">
                 <Card>
                   <CardHeader>
                     <CardTitle>Quick Actions</CardTitle>
@@ -414,6 +495,65 @@ export default function LeadDetailPage() {
                     </div>
                   </CardContent>
                 </Card>
+
+                {/* Notes Section */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center justify-between">
+                      <span>Recent Notes</span>
+                      <span className="text-sm font-normal text-gray-500">
+                        {interactions.length} total
+                      </span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3 max-h-96 overflow-y-auto">
+                      {interactions.length === 0 ? (
+                        <p className="text-gray-500 text-sm text-center py-4">No notes recorded</p>
+                      ) : (
+                        interactions.slice(0, 10).map((interaction) => (
+                          <div key={interaction._id} className="border-l-2 border-gray-200 pl-3 py-2">
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center space-x-2 mb-1">
+                                  <span className="text-xs font-medium text-gray-900 capitalize">
+                                    {interaction.type}
+                                  </span>
+                                  {interaction.outcome && (
+                                    <span className="text-xs text-gray-600 bg-gray-100 px-2 py-0.5 rounded">
+                                      {interaction.outcome}
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-sm text-gray-700 mb-2 overflow-hidden" style={{
+                                  display: '-webkit-box',
+                                  WebkitLineClamp: 3,
+                                  WebkitBoxOrient: 'vertical'
+                                }}>
+                                  {interaction.notes}
+                                </p>
+                                <div className="text-xs text-gray-500">
+                                  {interaction.user?.name} • {new Date(interaction.createdAt).toLocaleDateString()} at{' '}
+                                  {new Date(interaction.createdAt).toLocaleTimeString([], { 
+                                    hour: '2-digit', 
+                                    minute: '2-digit' 
+                                  })}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                      {interactions.length > 10 && (
+                        <div className="text-center pt-3 border-t">
+                          <p className="text-sm text-gray-500">
+                            Showing 10 of {interactions.length} notes
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
             </div>
           </div>
@@ -425,11 +565,14 @@ export default function LeadDetailPage() {
           isOpen={showInteractionModal}
           onClose={() => setShowInteractionModal(false)}
           leadId={params.id}
+          currentLead={lead}
           onSuccess={() => {
             setShowInteractionModal(false);
             fetchLead();
           }}
         />
+
+
         </div>
       </div>
     </ProtectedRoute>
@@ -437,7 +580,7 @@ export default function LeadDetailPage() {
 }
 
 // Edit Lead Form Component
-function EditLeadForm({ lead, onSave, onCancel, userRole }) {
+function EditLeadForm({ lead, onSave, onCancel }) {
   const [formData, setFormData] = useState({
     name: lead.name || '',
     phone: lead.phone || '',
@@ -596,45 +739,77 @@ function EditLeadForm({ lead, onSave, onCancel, userRole }) {
 }
 
 // Add Interaction Modal Component
-function AddInteractionModal({ isOpen, onClose, leadId, onSuccess }) {
+function AddInteractionModal({ isOpen, onClose, leadId, onSuccess, currentLead }) {
   const [formData, setFormData] = useState({
     type: 'Call',
     outcome: '',
     notes: '',
     duration: '',
     followUpDate: '',
+    leadStatus: '',
   });
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (isOpen && currentLead) {
+      setFormData(prev => ({
+        ...prev,
+        leadStatus: currentLead.status || 'New',
+        followUpDate: new Date().toISOString().slice(0, 16) // Today's date and current time
+      }));
+    }
+  }, [isOpen, currentLead]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      const response = await fetch('/api/interactions', {
+      // Add interaction
+      const interactionResponse = await fetch('/api/interactions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ...formData,
-          lead: leadId,
+          type: formData.type,
+          outcome: formData.outcome,
+          notes: formData.notes,
           duration: formData.duration ? parseInt(formData.duration) : null,
+          followUpDate: formData.followUpDate || null,
+          lead: leadId,
         }),
       });
 
-      if (response.ok) {
-        onSuccess();
-        setFormData({
-          type: 'Call',
-          outcome: '',
-          notes: '',
-          duration: '',
-          followUpDate: '',
-        });
-      } else {
-        alert('Failed to add interaction');
+      if (!interactionResponse.ok) {
+        throw new Error('Failed to add interaction');
       }
+
+      // Update lead status if it has changed
+      if (formData.leadStatus !== currentLead?.status) {
+        const statusResponse = await fetch(`/api/leads/${leadId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            status: formData.leadStatus,
+          }),
+        });
+
+        if (!statusResponse.ok) {
+          throw new Error('Failed to update lead status');
+        }
+      }
+
+      onSuccess();
+      setFormData({
+        type: 'Call',
+        outcome: '',
+        notes: '',
+        duration: '',
+        followUpDate: new Date().toISOString().slice(0, 16),
+        leadStatus: currentLead?.status || 'New',
+      });
     } catch (error) {
-      alert('Network error. Please try again.');
+      alert(error.message || 'Network error. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -650,21 +825,41 @@ function AddInteractionModal({ isOpen, onClose, leadId, onSuccess }) {
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Add Interaction">
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
-          <select
-            name="type"
-            required
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-            value={formData.type}
-            onChange={handleChange}
-          >
-            <option value="Call">Call</option>
-            <option value="Email">Email</option>
-            <option value="WhatsApp">WhatsApp</option>
-            <option value="Meeting">Meeting</option>
-            <option value="Note">Note</option>
-          </select>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+            <select
+              name="type"
+              required
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+              value={formData.type}
+              onChange={handleChange}
+            >
+              <option value="Call">Call</option>
+              <option value="Email">Email</option>
+              <option value="WhatsApp">WhatsApp</option>
+              <option value="Meeting">Meeting</option>
+              <option value="Note">Note</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Lead Status</label>
+            <select
+              name="leadStatus"
+              required
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+              value={formData.leadStatus}
+              onChange={handleChange}
+            >
+              <option value="New">New</option>
+              <option value="Contacted">Contacted</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Follow-up">Follow-up</option>
+              <option value="Converted">Converted</option>
+              <option value="Lost">Lost</option>
+            </select>
+          </div>
         </div>
 
         <div>
@@ -714,10 +909,10 @@ function AddInteractionModal({ isOpen, onClose, leadId, onSuccess }) {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Follow-up Date
+              Follow-up Date & Time
             </label>
             <input
-              type="date"
+              type="datetime-local"
               name="followUpDate"
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
               value={formData.followUpDate}
@@ -738,3 +933,4 @@ function AddInteractionModal({ isOpen, onClose, leadId, onSuccess }) {
     </Modal>
   );
 }
+
