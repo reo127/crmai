@@ -296,10 +296,90 @@ export default function LeadDetailPage() {
 
           {/* Main Content */}
           <div className="flex-1 lg:ml-0">
-            <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+            <div className="max-w-7xl mx-auto pt-6 pb-28 sm:pb-6 sm:py-6 sm:px-6 lg:px-8">
               <div className="px-4 py-6 sm:px-0">
-                {/* Header */}
-                <div className="flex justify-between items-center mb-6">
+                {/* ── Mobile Header ────────────────────────────────── */}
+                <div className="sm:hidden mb-4 space-y-3">
+
+                  {/* Row 1: back + actions */}
+                  <div className="flex items-center justify-between">
+                    <button
+                      onClick={() => router.push('/leads')}
+                      className="flex items-center gap-1 text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+                      </svg>
+                      Leads
+                    </button>
+
+                    <div className="flex items-center gap-2">
+                      {!editing && user?.role === 'admin' && (
+                        <button
+                          onClick={() => setEditing(true)}
+                          className="px-3 py-1.5 text-xs font-semibold bg-blue-600 text-white rounded-lg active:bg-blue-700 transition-colors"
+                        >
+                          Edit
+                        </button>
+                      )}
+                      {user?.role === 'admin' && (
+                        <button
+                          onClick={handleDeleteLead}
+                          className="px-3 py-1.5 text-xs font-semibold text-red-600 bg-red-50 border border-red-200 rounded-lg active:bg-red-100 transition-colors"
+                        >
+                          Delete
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setSidebarOpen(true)}
+                        className="p-1.5 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+                        aria-label="All leads"
+                      >
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Row 2: lead name + company */}
+                  <div>
+                    <h1 className="text-xl font-bold text-slate-900 leading-tight">{lead.name}</h1>
+                    {lead.companyName && (
+                      <p className="text-sm text-slate-500 mt-0.5">{lead.companyName}</p>
+                    )}
+                  </div>
+
+                  {/* Row 3: prev / counter / next pill */}
+                  <div className="flex items-center bg-slate-100 rounded-xl p-1 gap-1">
+                    <button
+                      onClick={handlePreviousLead}
+                      disabled={!getPreviousLead() || leadsLoading}
+                      className="flex-1 flex items-center justify-center gap-1 py-2 text-sm font-medium text-slate-700 bg-transparent hover:bg-white hover:shadow-sm rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+                      </svg>
+                      Prev
+                    </button>
+                    <span className="text-xs font-semibold text-slate-500 px-2 whitespace-nowrap tabular-nums">
+                      {getCurrentLeadIndex() + 1} / {allLeads.length}
+                    </span>
+                    <button
+                      onClick={handleNextLead}
+                      disabled={!getNextLead() || leadsLoading}
+                      className="flex-1 flex items-center justify-center gap-1 py-2 text-sm font-medium text-slate-700 bg-transparent hover:bg-white hover:shadow-sm rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      Next
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+
+                {/* ── Desktop Header ───────────────────────────────── */}
+                <div className="hidden sm:flex justify-between items-center mb-6">
                   <div className="flex items-center">
                     <Button
                       variant="outline"
@@ -610,6 +690,39 @@ export default function LeadDetailPage() {
             fetchLead();
           }}
         />
+
+        {/* ── Mobile Sticky Bottom Bar ─────────────────────── */}
+        <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-slate-200 px-4 py-3 sm:hidden z-40 shadow-2xl">
+          <div className="flex items-center gap-2 max-w-lg mx-auto">
+            {/* Call */}
+            <button
+              onClick={() => window.open(`tel:${lead.phone}`)}
+              className="flex-1 flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-sm font-semibold py-3 rounded-xl transition-all"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
+              </svg>
+              Call
+            </button>
+            {/* Log Interaction */}
+            <button
+              onClick={() => setShowInteractionModal(true)}
+              className="flex-1 flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-sm font-semibold py-3 rounded-xl transition-all"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+              </svg>
+              Log
+            </button>
+            {/* Status */}
+            <button
+              onClick={() => setShowStatusModal(true)}
+              className="px-4 py-3 bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 text-sm font-semibold rounded-xl transition-all whitespace-nowrap"
+            >
+              Status
+            </button>
+          </div>
+        </div>
 
         </div>
       </div>
