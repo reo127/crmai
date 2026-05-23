@@ -12,6 +12,7 @@ export default function LeadsPage() {
   const router = useRouter();
   const [leads, setLeads] = useState([]);
   const [user, setUser] = useState(null);
+  const [filterUsers, setFilterUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showInteractionModal, setShowInteractionModal] = useState(false);
@@ -26,6 +27,7 @@ export default function LeadsPage() {
   const [exportLoading, setExportLoading] = useState(false);
   const [filters, setFilters] = useState({
     status: 'all',
+    assignedTo: 'all',
     search: '',
     page: 1,
     limit: 10,
@@ -42,7 +44,18 @@ export default function LeadsPage() {
       setUser(JSON.parse(userData));
     }
     fetchLeads();
+    fetchFilterUsers();
   }, [filters]);
+
+  const fetchFilterUsers = async () => {
+    try {
+      const res = await fetch('/api/users', { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        setFilterUsers(data.users || []);
+      }
+    } catch {}
+  };
 
   const fetchLeads = async () => {
     try {
@@ -51,6 +64,7 @@ export default function LeadsPage() {
         page: filters.page.toString(),
         limit: filters.limit.toString(),
         ...(filters.status !== 'all' && { status: filters.status }),
+        ...(filters.assignedTo !== 'all' && { assignedTo: filters.assignedTo }),
         ...(filters.search && { search: filters.search }),
       });
 
@@ -205,7 +219,7 @@ export default function LeadsPage() {
             {/* Filters */}
             <Card className="mb-6">
               <CardContent className="p-6">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-1.5">
                       Search
@@ -234,6 +248,22 @@ export default function LeadsPage() {
                       <option value="Converted">Converted</option>
                       <option value="Lost">Lost</option>
                       <option value="Follow-up">Follow-up</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                      Assigned To
+                    </label>
+                    <select
+                      className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors text-sm bg-white"
+                      value={filters.assignedTo}
+                      onChange={(e) => handleFilterChange('assignedTo', e.target.value)}
+                    >
+                      <option value="all">All Assignees</option>
+                      <option value="unassigned">Unassigned</option>
+                      {filterUsers.map((u) => (
+                        <option key={u._id} value={u._id}>{u.name}</option>
+                      ))}
                     </select>
                   </div>
                   <div>
