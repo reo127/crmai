@@ -165,7 +165,7 @@ export default function DashboardPage() {
               <h1 className="text-2xl font-bold text-slate-900">
                 {user?.role === 'admin' ? 'Admin Dashboard' : 'My Dashboard'}
               </h1>
-              <p className="text-slate-500 text-sm mt-0.5">Track your leads and performance at a glance</p>
+              <p className="text-slate-500 text-sm mt-0.5">Track your leads and performance at a glance mmmmmmmmm</p>
             </div>
           </div>
 
