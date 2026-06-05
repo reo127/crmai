@@ -63,12 +63,31 @@ export default function DashboardPage() {
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('all');
+
+  const [followupLeads, setFollowupLeads] = useState([]);
+  const [followupLoading, setFollowupLoading] = useState(true);
+  const [followupDateFrom, setFollowupDateFrom] = useState('');
+  const [followupDateTo, setFollowupDateTo] = useState('');
+
+  const [myLeads, setMyLeads] = useState([]);
+  const [myLeadsLoading, setMyLeadsLoading] = useState(true);
+  const [myLeadsDateFrom, setMyLeadsDateFrom] = useState('');
+  const [myLeadsDateTo, setMyLeadsDateTo] = useState('');
+
   const router = useRouter();
 
   useEffect(() => {
     fetchUserData();
     fetchDashboardData();
   }, []);
+
+  useEffect(() => {
+    fetchFollowupLeads();
+  }, [followupDateFrom, followupDateTo]);
+
+  useEffect(() => {
+    fetchMyLeads();
+  }, [myLeadsDateFrom, myLeadsDateTo]);
 
   const fetchUserData = async () => {
     try {
@@ -94,6 +113,41 @@ export default function DashboardPage() {
     }
   };
 
+  const fetchFollowupLeads = async () => {
+    try {
+      setFollowupLoading(true);
+      const params = new URLSearchParams();
+      if (followupDateFrom) params.set('dateFrom', followupDateFrom);
+      if (followupDateTo) params.set('dateTo', followupDateTo);
+      const res = await fetch(`/api/dashboard/followup-leads?${params}`, { credentials: 'include' });
+      if (res.ok) setFollowupLeads((await res.json()).leads);
+    } catch {} finally {
+      setFollowupLoading(false);
+    }
+  };
+
+  const fetchMyLeads = async () => {
+    try {
+      setMyLeadsLoading(true);
+      const params = new URLSearchParams();
+      if (myLeadsDateFrom) params.set('dateFrom', myLeadsDateFrom);
+      if (myLeadsDateTo) params.set('dateTo', myLeadsDateTo);
+      const res = await fetch(`/api/dashboard/leads?${params}`, { credentials: 'include' });
+      if (res.ok) {
+        let data = (await res.json()).leads;
+        if (myLeadsDateFrom) data = data.filter(l => new Date(l.createdAt) >= new Date(myLeadsDateFrom));
+        if (myLeadsDateTo) {
+          const end = new Date(myLeadsDateTo);
+          end.setHours(23, 59, 59, 999);
+          data = data.filter(l => new Date(l.createdAt) <= end);
+        }
+        setMyLeads(data);
+      }
+    } catch {} finally {
+      setMyLeadsLoading(false);
+    }
+  };
+
   const filteredLeads = statusFilter === 'all'
     ? leads
     : leads.filter(lead => lead.status.toLowerCase().replace(/[\s-]/g, '') === statusFilter);
@@ -106,7 +160,6 @@ export default function DashboardPage() {
         <Navbar />
         <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
 
-          {/* Header */}
           <div className="flex justify-between items-center mb-7">
             <div>
               <h1 className="text-2xl font-bold text-slate-900">
@@ -114,17 +167,8 @@ export default function DashboardPage() {
               </h1>
               <p className="text-slate-500 text-sm mt-0.5">Track your leads and performance at a glance</p>
             </div>
-            {/* {user?.role !== 'admin' && (
-              <Button onClick={() => router.push('/request-leads')}>
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                </svg>
-                Request Leads
-              </Button>
-            )} */}
           </div>
 
-          {/* Stats */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-7">
             <StatCard label="Total Leads" value={stats.totalLeads} color="bg-blue-50 text-blue-600"
               icon="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -138,7 +182,6 @@ export default function DashboardPage() {
               icon="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
           </div>
 
-          {/* Conversion rate */}
           <Card className="mb-7">
             <CardContent className="p-5">
               <div className="flex items-center justify-between mb-3">
@@ -157,7 +200,34 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
-          {/* Leads overview */}
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-7">
+            <LeadListBox
+              title="In Progress & Follow-ups"
+              leads={followupLeads}
+              loading={followupLoading}
+              dateFrom={followupDateFrom}
+              dateTo={followupDateTo}
+              onDateFromChange={setFollowupDateFrom}
+              onDateToChange={setFollowupDateTo}
+              accentColor="text-violet-700"
+              emptyMsg="No in-progress or follow-up leads for this period"
+              router={router}
+            />
+
+            <LeadListBox
+              title="Leads Assigned to Me"
+              leads={myLeads}
+              loading={myLeadsLoading}
+              dateFrom={myLeadsDateFrom}
+              dateTo={myLeadsDateTo}
+              onDateFromChange={setMyLeadsDateFrom}
+              onDateToChange={setMyLeadsDateTo}
+              accentColor="text-blue-700"
+              emptyMsg="No leads assigned for this period"
+              router={router}
+            />
+          </div>
+
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -183,7 +253,6 @@ export default function DashboardPage() {
               </div>
             </CardHeader>
             <CardContent className="p-0">
-              {/* Info tip */}
               <div className="mx-6 mt-4 mb-4 flex items-center gap-2.5 bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-lg text-sm">
                 <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
