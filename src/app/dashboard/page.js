@@ -57,6 +57,66 @@ const LoadingSkeleton = () => (
   </ProtectedRoute>
 );
 
+const LeadListBox = ({ title, leads, loading, dateFrom, dateTo, onDateFromChange, onDateToChange, accentColor, emptyMsg, router }) => (
+  <Card>
+    <CardHeader>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <CardTitle className={accentColor}>{title}</CardTitle>
+        <div className="flex items-center gap-2">
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => onDateFromChange(e.target.value)}
+            className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white"
+          />
+          <span className="text-slate-400 text-xs">–</span>
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => onDateToChange(e.target.value)}
+            className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white"
+          />
+        </div>
+      </div>
+    </CardHeader>
+    <CardContent className="p-0">
+      {loading ? (
+        <div className="px-6 py-8 space-y-3">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="animate-pulse flex items-center gap-3">
+              <div className="w-8 h-8 bg-slate-100 rounded-full flex-shrink-0" />
+              <div className="flex-1 space-y-1.5">
+                <div className="h-3 bg-slate-100 rounded w-1/2" />
+                <div className="h-2.5 bg-slate-100 rounded w-1/3" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : leads.length === 0 ? (
+        <div className="px-6 py-10 text-center text-slate-400 text-sm">{emptyMsg}</div>
+      ) : (
+        <ul className="divide-y divide-slate-100 max-h-72 overflow-y-auto">
+          {leads.map((lead) => (
+            <li
+              key={lead._id}
+              onClick={() => router.push(`/leads/${lead._id}`)}
+              className="flex items-center justify-between px-6 py-3 hover:bg-blue-50/50 cursor-pointer transition-colors"
+            >
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-blue-600 truncate">{lead.name}</p>
+                <p className="text-xs text-slate-500 truncate">{lead.phone} · {lead.source}</p>
+              </div>
+              <span className={`ml-3 flex-shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${statusConfig[lead.status] || 'bg-slate-50 text-slate-700 ring-1 ring-slate-200'}`}>
+                {lead.status}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </CardContent>
+  </Card>
+);
+
 export default function DashboardPage() {
   const [user, setUser] = useState(null);
   const [stats, setStats] = useState({ totalLeads: 0, convertedLeads: 0, pendingLeads: 0, followUpsToday: 0, conversionRate: 0, totalCalls: 0 });
