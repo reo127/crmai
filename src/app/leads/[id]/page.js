@@ -19,6 +19,7 @@ export default function LeadDetailPage() {
   const [showInteractionModal, setShowInteractionModal] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarSortOrder, setSidebarSortOrder] = useState('desc'); // 'desc' = newest first
   const router = useRouter();
   const params = useParams();
 
@@ -44,7 +45,7 @@ export default function LeadDetailPage() {
   const fetchAllLeads = useCallback(async () => {
     try {
       setLeadsLoading(true);
-      const response = await fetch('/api/leads?limit=100', {
+      const response = await fetch(`/api/leads?limit=100&sortBy=createdAt&sortOrder=${sidebarSortOrder}`, {
         credentials: 'include',
       });
       if (response.ok) {
@@ -56,7 +57,7 @@ export default function LeadDetailPage() {
     } finally {
       setLeadsLoading(false);
     }
-  }, []);
+  }, [sidebarSortOrder]);
 
   const getCurrentLeadIndex = useCallback(() => {
     return allLeads.findIndex(lead => lead._id === params.id);
@@ -100,6 +101,11 @@ export default function LeadDetailPage() {
     fetchLead();
     fetchAllLeads();
   }, [params.id, fetchLead, fetchAllLeads]);
+
+  // Re-fetch sidebar when sort order changes
+  useEffect(() => {
+    fetchAllLeads();
+  }, [sidebarSortOrder, fetchAllLeads]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -229,9 +235,24 @@ export default function LeadDetailPage() {
             <div className="p-4 border-b border-slate-100">
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-bold text-slate-900 uppercase tracking-widest">All Leads</h2>
-                <button className="lg:hidden p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer" onClick={() => setSidebarOpen(false)}>
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => setSidebarSortOrder(o => o === 'desc' ? 'asc' : 'desc')}
+                    title={sidebarSortOrder === 'desc' ? 'Newest first — click for oldest first' : 'Oldest first — click for newest first'}
+                    className="flex items-center gap-1 px-2 py-1 text-xs font-semibold text-slate-500 bg-slate-100 hover:bg-slate-200 rounded-md transition-colors"
+                  >
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+                      {sidebarSortOrder === 'desc'
+                        ? <path strokeLinecap="round" strokeLinejoin="round" d="M3 4.5h14.25M3 9h9.75M3 13.5h5.25m5.25-.75L17.25 9m0 0L21 12.75M17.25 9v12" />
+                        : <path strokeLinecap="round" strokeLinejoin="round" d="M3 4.5h14.25M3 9h9.75M3 13.5h5.25m5.25 5.25L17.25 21m0 0L21 17.25M17.25 21V9" />
+                      }
+                    </svg>
+                    {sidebarSortOrder === 'desc' ? 'Newest' : 'Oldest'}
+                  </button>
+                  <button className="lg:hidden p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer" onClick={() => setSidebarOpen(false)}>
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
+                </div>
               </div>
               <p className="text-xs text-slate-500 mt-1">{allLeads.length} leads total</p>
             </div>

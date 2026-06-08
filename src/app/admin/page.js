@@ -16,6 +16,7 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [showAddUserModal, setShowAddUserModal] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [showDuplicateModal, setShowDuplicateModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const router = useRouter();
 
@@ -181,6 +182,37 @@ export default function AdminPage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Duplicate Lead Manager */}
+          <Card className="mt-6">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Duplicate Lead Detector</CardTitle>
+                  <p className="text-sm text-slate-500 mt-0.5">Find leads sharing the same phone number and resolve them</p>
+                </div>
+                <button
+                  onClick={() => setShowDuplicateModal(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-semibold rounded-lg transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 15.803a7.5 7.5 0 0010.607 10.607z" />
+                  </svg>
+                  Scan for Duplicates
+                </button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-start gap-3 bg-orange-50 border border-orange-200 rounded-xl px-4 py-3">
+                <svg className="w-5 h-5 text-orange-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                </svg>
+                <p className="text-sm text-orange-700">
+                  This tool scans all leads for matching phone numbers, groups them together, and lets you decide which to <strong>keep</strong>, which to <strong>delete</strong>, or which to <strong>change status</strong> on.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         <AddUserModal
@@ -193,6 +225,10 @@ export default function AdminPage() {
           onClose={() => setShowUploadModal(false)}
           onSuccess={() => { setShowUploadModal(false); setSelectedUser(null); }}
           selectedUser={selectedUser}
+        />
+        <DuplicateManagerModal
+          isOpen={showDuplicateModal}
+          onClose={() => setShowDuplicateModal(false)}
         />
       </div>
     </ProtectedRoute>
@@ -365,6 +401,397 @@ John Doe,+1234567890,john@example.com,ABC Corp,Software,Website,5000,High,Intere
           <Button onClick={handleUpload} disabled={!file || uploading}>{uploading ? 'Uploading...' : 'Upload Leads'}</Button>
         </div>
       </div>
+    </Modal>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Duplicate Manager Modal
+// ─────────────────────────────────────────────────────────────────────────────
+const STATUS_OPTIONS = ['New', 'Contacted', 'In Progress', 'Converted', 'Lost', 'Follow-up'];
+
+const statusBadge = {
+  'New':         'bg-blue-50 text-blue-700 ring-1 ring-blue-200',
+  'Contacted':   'bg-amber-50 text-amber-700 ring-1 ring-amber-200',
+  'In Progress': 'bg-violet-50 text-violet-700 ring-1 ring-violet-200',
+  'Converted':   'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',
+  'Lost':        'bg-red-50 text-red-700 ring-1 ring-red-200',
+  'Follow-up':   'bg-orange-50 text-orange-700 ring-1 ring-orange-200',
+};
+
+function DuplicateManagerModal({ isOpen, onClose }) {
+  const SCREEN = { IDLE: 'idle', SCANNING: 'scanning', RESULTS: 'results', DONE: 'done' };
+
+  const [screen, setScreen]           = useState(SCREEN.IDLE);
+  const [groups, setGroups]           = useState([]);        // all dup groups
+  const [groupIdx, setGroupIdx]       = useState(0);         // which group we're reviewing
+  const [selected, setSelected]       = useState(new Set()); // checked lead IDs in current group
+  const [actionMode, setActionMode]   = useState('delete');  // 'delete' | 'status'
+  const [newStatus, setNewStatus]     = useState('Lost');
+  const [applying, setApplying]       = useState(false);
+  const [toast, setToast]             = useState(null);      // { type, msg }
+  const [resolved, setResolved]       = useState(0);         // count of resolved groups
+
+  // Reset when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setScreen(SCREEN.IDLE);
+      setGroups([]);
+      setGroupIdx(0);
+      setSelected(new Set());
+      setResolved(0);
+      setToast(null);
+    }
+  }, [isOpen]);
+
+  const showToast = (type, msg) => {
+    setToast({ type, msg });
+    setTimeout(() => setToast(null), 3500);
+  };
+
+  // ── Scan ────────────────────────────────────────────────────────────────────
+  const handleScan = async () => {
+    setScreen(SCREEN.SCANNING);
+    setToast(null);
+    try {
+      const res = await fetch('/api/admin/duplicates', { credentials: 'include' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Scan failed');
+      setGroups(data.groups || []);
+      setGroupIdx(0);
+      setSelected(new Set());
+      setResolved(0);
+      setScreen(data.groups?.length > 0 ? SCREEN.RESULTS : SCREEN.DONE);
+    } catch (err) {
+      showToast('error', err.message);
+      setScreen(SCREEN.IDLE);
+    }
+  };
+
+  // ── Apply action on selected leads ─────────────────────────────────────────
+  const handleApply = async () => {
+    if (selected.size === 0) { showToast('error', 'Please select at least one lead to act on.'); return; }
+    const currentGroup = groups[groupIdx];
+    // Safety: never delete ALL leads in a group
+    if (actionMode === 'delete' && selected.size === currentGroup.leads.length) {
+      showToast('error', 'You must keep at least one lead. Deselect at least one before deleting.');
+      return;
+    }
+    setApplying(true);
+    try {
+      const body = actionMode === 'delete'
+        ? { action: 'delete', ids: [...selected] }
+        : { action: 'update_status', ids: [...selected], status: newStatus };
+      const res = await fetch('/api/admin/duplicates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Action failed');
+
+      const msg = actionMode === 'delete'
+        ? `${data.deleted} lead${data.deleted !== 1 ? 's' : ''} deleted.`
+        : `Status updated to "${newStatus}" for ${data.updated} lead${data.updated !== 1 ? 's' : ''}.`;
+      showToast('success', msg);
+      setResolved(r => r + 1);
+
+      // Advance to next group
+      const nextIdx = groupIdx + 1;
+      if (nextIdx >= groups.length) {
+        setScreen(SCREEN.DONE);
+      } else {
+        setGroupIdx(nextIdx);
+        setSelected(new Set());
+      }
+    } catch (err) {
+      showToast('error', err.message);
+    } finally {
+      setApplying(false);
+    }
+  };
+
+  // ── Skip current group ──────────────────────────────────────────────────────
+  const handleSkip = () => {
+    const nextIdx = groupIdx + 1;
+    if (nextIdx >= groups.length) {
+      setScreen(SCREEN.DONE);
+    } else {
+      setGroupIdx(nextIdx);
+      setSelected(new Set());
+    }
+  };
+
+  // ── Toggle a lead's checkbox ─────────────────────────────────────────────────
+  const toggleLead = (id) => {
+    const s = new Set(selected);
+    s.has(id) ? s.delete(id) : s.add(id);
+    setSelected(s);
+  };
+
+  // ── "Select all to delete" helper — selects all except the first (oldest/newest) ──
+  const selectAllExcept = (keepId) => {
+    const current = groups[groupIdx]?.leads || [];
+    const s = new Set(current.map(l => l._id.toString()).filter(id => id !== keepId));
+    setSelected(s);
+  };
+
+  const currentGroup = groups[groupIdx] || null;
+  const totalGroups  = groups.length;
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Duplicate Lead Manager" size="xl">
+
+      {/* Toast */}
+      {toast && (
+        <div className={`mb-4 flex items-start gap-2.5 px-4 py-3 rounded-xl text-sm font-medium border ${
+          toast.type === 'success'
+            ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+            : 'bg-red-50 border-red-200 text-red-700'
+        }`}>
+          {toast.type === 'success'
+            ? <svg className="w-4 h-4 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            : <svg className="w-4 h-4 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" /></svg>
+          }
+          {toast.msg}
+        </div>
+      )}
+
+      {/* ── IDLE ── */}
+      {screen === SCREEN.IDLE && (
+        <div className="text-center py-10 space-y-5">
+          <div className="w-16 h-16 bg-orange-100 rounded-2xl flex items-center justify-center mx-auto">
+            <svg className="w-8 h-8 text-orange-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 15.75l-2.489-2.489m0 0a3.375 3.375 0 10-4.773-4.773 3.375 3.375 0 004.774 4.774zM21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div>
+            <h3 className="text-lg font-bold text-slate-900">Scan for Duplicate Leads</h3>
+            <p className="text-sm text-slate-500 mt-1 max-w-sm mx-auto">
+              This will scan all leads in your CRM for matching phone numbers and group them for review.
+            </p>
+          </div>
+          <button
+            onClick={handleScan}
+            className="inline-flex items-center gap-2 px-6 py-3 bg-orange-600 hover:bg-orange-700 text-white font-semibold rounded-xl transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 15.803a7.5 7.5 0 0010.607 10.607z" />
+            </svg>
+            Start Scan
+          </button>
+        </div>
+      )}
+
+      {/* ── SCANNING ── */}
+      {screen === SCREEN.SCANNING && (
+        <div className="text-center py-12 space-y-4">
+          <div className="w-12 h-12 border-4 border-orange-200 border-t-orange-600 rounded-full animate-spin mx-auto" />
+          <p className="text-sm font-semibold text-slate-600">Scanning all leads for duplicates…</p>
+        </div>
+      )}
+
+      {/* ── RESULTS ── */}
+      {screen === SCREEN.RESULTS && currentGroup && (
+        <div className="space-y-5">
+          {/* Progress bar */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                Group {groupIdx + 1} of {totalGroups}
+              </span>
+              <span className="text-xs text-slate-500">{resolved} resolved</span>
+            </div>
+            <div className="w-full bg-slate-100 rounded-full h-1.5">
+              <div
+                className="bg-orange-500 h-1.5 rounded-full transition-all"
+                style={{ width: `${((groupIdx) / totalGroups) * 100}%` }}
+              />
+            </div>
+          </div>
+
+          {/* Group header */}
+          <div className="flex items-center gap-3 bg-orange-50 border border-orange-200 rounded-xl px-4 py-3">
+            <svg className="w-5 h-5 text-orange-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
+            </svg>
+            <div>
+              <p className="text-sm font-bold text-orange-900">Phone: {currentGroup.phone}</p>
+              <p className="text-xs text-orange-700">{currentGroup.leads.length} leads share this number</p>
+            </div>
+          </div>
+
+          {/* Lead cards */}
+          <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+            {currentGroup.leads.map((lead, i) => {
+              const id = lead._id.toString();
+              const isChecked = selected.has(id);
+              return (
+                <label
+                  key={id}
+                  htmlFor={`dup-lead-${id}`}
+                  className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${
+                    isChecked
+                      ? 'bg-red-50 border-red-300'
+                      : 'bg-white border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  <input
+                    id={`dup-lead-${id}`}
+                    type="checkbox"
+                    checked={isChecked}
+                    onChange={() => toggleLead(id)}
+                    className="mt-1 w-4 h-4 rounded border-slate-300 text-red-600 focus:ring-red-500 cursor-pointer flex-shrink-0"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-semibold text-slate-900">{lead.name}</span>
+                      {i === 0 && (
+                        <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full font-medium">Oldest</span>
+                      )}
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusBadge[lead.status] || 'bg-slate-100 text-slate-600'}`}>
+                        {lead.status}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-0.5">{lead.phone} · {lead.email || 'No email'}</p>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      {lead.source?.name || 'Unknown source'} · Assigned: {lead.assignedTo?.name || 'Unassigned'} · Added {new Date(lead.createdAt).toLocaleDateString()}
+                    </p>
+                    {lead.companyName && <p className="text-xs text-slate-400">{lead.companyName}</p>}
+                  </div>
+                  {isChecked && (
+                    <span className="text-xs font-semibold text-red-600 flex-shrink-0 mt-1">
+                      {actionMode === 'delete' ? '✕ Delete' : '✎ Update'}
+                    </span>
+                  )}
+                </label>
+              );
+            })}
+          </div>
+
+          {/* Quick-select helpers */}
+          <div className="flex flex-wrap gap-2">
+            <span className="text-xs font-semibold text-slate-500 self-center">Quick select:</span>
+            <button
+              onClick={() => selectAllExcept(currentGroup.leads[0]?._id.toString())}
+              className="text-xs px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-colors"
+            >
+              All except oldest
+            </button>
+            <button
+              onClick={() => selectAllExcept(currentGroup.leads[currentGroup.leads.length - 1]?._id.toString())}
+              className="text-xs px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-colors"
+            >
+              All except newest
+            </button>
+            <button
+              onClick={() => setSelected(new Set())}
+              className="text-xs px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-colors"
+            >
+              Clear selection
+            </button>
+          </div>
+
+          {/* Action selector */}
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+            <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Action for selected leads</p>
+            <div className="flex flex-wrap gap-3">
+              <label className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer text-sm font-medium transition-colors ${
+                actionMode === 'delete' ? 'bg-red-50 border-red-300 text-red-700' : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
+              }`}>
+                <input type="radio" name="actionMode" value="delete" checked={actionMode === 'delete'} onChange={() => setActionMode('delete')} className="w-4 h-4 text-red-600" />
+                Delete selected
+              </label>
+              <label className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer text-sm font-medium transition-colors ${
+                actionMode === 'status' ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
+              }`}>
+                <input type="radio" name="actionMode" value="status" checked={actionMode === 'status'} onChange={() => setActionMode('status')} className="w-4 h-4 text-blue-600" />
+                Change status
+              </label>
+            </div>
+            {actionMode === 'status' && (
+              <select
+                value={newStatus}
+                onChange={e => setNewStatus(e.target.value)}
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+              >
+                {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+            <button
+              onClick={handleSkip}
+              className="text-sm font-semibold text-slate-500 hover:text-slate-700 transition-colors"
+            >
+              Skip this group →
+            </button>
+            <div className="flex gap-3">
+              <button onClick={onClose} className="px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-900 transition-colors">
+                Close
+              </button>
+              <button
+                onClick={handleApply}
+                disabled={applying || selected.size === 0}
+                className={`flex items-center gap-2 px-5 py-2 text-sm font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                  actionMode === 'delete'
+                    ? 'bg-red-600 hover:bg-red-700 text-white'
+                    : 'bg-blue-600 hover:bg-blue-700 text-white'
+                }`}
+              >
+                {applying && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                {actionMode === 'delete'
+                  ? `Delete ${selected.size} lead${selected.size !== 1 ? 's' : ''}`
+                  : `Update ${selected.size} lead${selected.size !== 1 ? 's' : ''}`
+                }
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── DONE ── */}
+      {screen === SCREEN.DONE && (
+        <div className="text-center py-10 space-y-5">
+          <div className="w-16 h-16 bg-emerald-100 rounded-2xl flex items-center justify-center mx-auto">
+            <svg className="w-8 h-8 text-emerald-600" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div>
+            <h3 className="text-lg font-bold text-slate-900">
+              {groups.length === 0 ? 'No Duplicates Found!' : 'All Groups Reviewed!'}
+            </h3>
+            <p className="text-sm text-slate-500 mt-1">
+              {groups.length === 0
+                ? 'Great news — your CRM has no duplicate phone numbers.'
+                : `You reviewed ${totalGroups} duplicate group${totalGroups !== 1 ? 's' : ''} and resolved ${resolved}.`
+              }
+            </p>
+          </div>
+          <div className="flex justify-center gap-3">
+            <button
+              onClick={handleScan}
+              className="flex items-center gap-2 px-5 py-2.5 border border-slate-200 hover:bg-slate-50 text-slate-700 text-sm font-semibold rounded-lg transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+              </svg>
+              Scan Again
+            </button>
+            <button
+              onClick={onClose}
+              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors"
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      )}
+
     </Modal>
   );
 }
