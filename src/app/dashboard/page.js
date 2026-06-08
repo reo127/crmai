@@ -123,6 +123,7 @@ export default function DashboardPage() {
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('all');
+  const [leadsSortOrder, setLeadsSortOrder] = useState('desc'); // 'desc' = newest first
 
   const [followupLeads, setFollowupLeads] = useState([]);
   const [followupLoading, setFollowupLoading] = useState(true);
@@ -208,9 +209,18 @@ export default function DashboardPage() {
     }
   };
 
-  const filteredLeads = statusFilter === 'all'
-    ? leads
-    : leads.filter(lead => lead.status.toLowerCase().replace(/[\s-]/g, '') === statusFilter);
+  const filteredLeads = (() => {
+    let list = statusFilter === 'all'
+      ? leads
+      : leads.filter(lead => lead.status.toLowerCase().replace(/[\s-]/g, '') === statusFilter);
+    // Sort by createdAt
+    list = [...list].sort((a, b) => {
+      const aTime = new Date(a.createdAt).getTime();
+      const bTime = new Date(b.createdAt).getTime();
+      return leadsSortOrder === 'desc' ? bTime - aTime : aTime - bTime;
+    });
+    return list;
+  })();
 
   if (loading) return <LoadingSkeleton />;
 
@@ -225,7 +235,7 @@ export default function DashboardPage() {
               <h1 className="text-2xl font-bold text-slate-900">
                 {user?.role === 'admin' ? 'Admin Dashboard' : 'My Dashboard'}
               </h1>
-              <p className="text-slate-500 text-sm mt-0.5">Track your leads and performance at a glance mmmmmmmmm</p>
+              <p className="text-slate-500 text-sm mt-0.5">Track your leads and performance at a glance</p>
             </div>
           </div>
 
@@ -292,7 +302,7 @@ export default function DashboardPage() {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle>Leads Overview</CardTitle>
-                <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2">
                   <select
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
@@ -306,6 +316,19 @@ export default function DashboardPage() {
                     <option value="converted">Converted</option>
                     <option value="lost">Lost</option>
                   </select>
+                  <button
+                    onClick={() => setLeadsSortOrder(o => o === 'desc' ? 'asc' : 'desc')}
+                    title={leadsSortOrder === 'desc' ? 'Newest first — click for oldest first' : 'Oldest first — click for newest first'}
+                    className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors whitespace-nowrap"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+                      {leadsSortOrder === 'desc'
+                        ? <path strokeLinecap="round" strokeLinejoin="round" d="M3 4.5h14.25M3 9h9.75M3 13.5h5.25m5.25-.75L17.25 9m0 0L21 12.75M17.25 9v12" />
+                        : <path strokeLinecap="round" strokeLinejoin="round" d="M3 4.5h14.25M3 9h9.75M3 13.5h5.25m5.25 5.25L17.25 21m0 0L21 17.25M17.25 21V9" />
+                      }
+                    </svg>
+                    {leadsSortOrder === 'desc' ? 'Newest First' : 'Oldest First'}
+                  </button>
                   <Button variant="outline" size="sm" onClick={() => router.push('/leads')}>
                     Manage Leads
                   </Button>

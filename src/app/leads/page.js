@@ -31,6 +31,7 @@ export default function LeadsPage() {
     search: '',
     page: 1,
     limit: 10,
+    sortOrder: 'desc', // 'desc' = newest first, 'asc' = oldest first
   });
   const [pagination, setPagination] = useState({
     current: 1,
@@ -63,6 +64,8 @@ export default function LeadsPage() {
       const params = new URLSearchParams({
         page: filters.page.toString(),
         limit: filters.limit.toString(),
+        sortBy: 'createdAt',
+        sortOrder: filters.sortOrder,
         ...(filters.status !== 'all' && { status: filters.status }),
         ...(filters.assignedTo !== 'all' && { assignedTo: filters.assignedTo }),
         ...(filters.search && { search: filters.search }),
@@ -333,10 +336,25 @@ export default function LeadsPage() {
             {/* Leads Table */}
             <Card>
               <CardHeader>
-                <CardTitle>
-                  Leads ({pagination.total} total)
-                  {loading && <span className="ml-2 text-sm text-gray-500">Loading...</span>}
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle>
+                    Leads ({pagination.total} total)
+                    {loading && <span className="ml-2 text-sm text-gray-500">Loading...</span>}
+                  </CardTitle>
+                  <button
+                    onClick={() => handleFilterChange('sortOrder', filters.sortOrder === 'desc' ? 'asc' : 'desc')}
+                    title={filters.sortOrder === 'desc' ? 'Showing newest first — click for oldest first' : 'Showing oldest first — click for newest first'}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+                      {filters.sortOrder === 'desc'
+                        ? <path strokeLinecap="round" strokeLinejoin="round" d="M3 4.5h14.25M3 9h9.75M3 13.5h5.25m5.25-.75L17.25 9m0 0L21 12.75M17.25 9v12" />
+                        : <path strokeLinecap="round" strokeLinejoin="round" d="M3 4.5h14.25M3 9h9.75M3 13.5h5.25m5.25 5.25L17.25 21m0 0L21 17.25M17.25 21V9" />
+                      }
+                    </svg>
+                    {filters.sortOrder === 'desc' ? 'Newest First' : 'Oldest First'}
+                  </button>
+                </div>
               </CardHeader>
               <CardContent className="p-0">
                 <div className="overflow-x-auto">
@@ -2291,7 +2309,7 @@ function CsvUploadModal({ isOpen, onClose, onSuccess }) {
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-4 gap-3">
                 <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-center">
                   <p className="text-2xl font-bold text-slate-900">{result.total}</p>
                   <p className="text-xs font-semibold text-slate-500 mt-0.5 uppercase tracking-wide">Total Rows</p>
@@ -2299,6 +2317,10 @@ function CsvUploadModal({ isOpen, onClose, onSuccess }) {
                 <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-center">
                   <p className="text-2xl font-bold text-emerald-700">{result.inserted}</p>
                   <p className="text-xs font-semibold text-emerald-600 mt-0.5 uppercase tracking-wide">Imported</p>
+                </div>
+                <div className={`rounded-xl p-4 text-center border ${(result.duplicates ?? 0) > 0 ? 'bg-orange-50 border-orange-200' : 'bg-slate-50 border-slate-200'}`}>
+                  <p className={`text-2xl font-bold ${(result.duplicates ?? 0) > 0 ? 'text-orange-700' : 'text-slate-400'}`}>{result.duplicates ?? 0}</p>
+                  <p className={`text-xs font-semibold mt-0.5 uppercase tracking-wide ${(result.duplicates ?? 0) > 0 ? 'text-orange-600' : 'text-slate-400'}`}>Duplicates</p>
                 </div>
                 <div className={`rounded-xl p-4 text-center border ${result.skipped > 0 ? 'bg-amber-50 border-amber-200' : 'bg-slate-50 border-slate-200'}`}>
                   <p className={`text-2xl font-bold ${result.skipped > 0 ? 'text-amber-700' : 'text-slate-400'}`}>{result.skipped}</p>

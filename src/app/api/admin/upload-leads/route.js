@@ -205,9 +205,75 @@ export async function POST(request) {
       });
     }
 
+    // ── Phone-based duplicate detection ──────────────────────────────
+    // Normalise all phones in the batch for lookup
+    // Normalise phone: strip all non-digits, keep last 10 digits.
+    // Handles +91, 0, 091 prefixes — e.g. +917980225159 and 7980225159 both → 7980225159
+    const normalisePhone = (p) => {
+      if (!p) return '';
+      const digits = p.replace(/\D/g, '');
+      return digits.length > 10 ? digits.slice(-10) : digits;
+    };
+
+    // 1. Detect duplicates within the CSV itself (same phone appears twice)
+    const phonesSeen = new Map(); // normalised phone → first rowNum
+    const intraduplicates = new Set(); // indices into leadData to skip
+    leadData.forEach((ld, idx) => {
+      const norm = normalisePhone(ld.phone);
+      if (phonesSeen.has(norm)) {
+        // This row is a duplicate of an earlier row in the same CSV
+        const firstRow = phonesSeen.get(norm);
+        rowErrors.push({
+          row: idx + 2, // +2: header is row 1, leadData is 0-indexed
+          field: 'Phone',
+          message: `Duplicate phone "${ld.phone}" in this CSV — same number already appears in row ${firstRow}. Skipping.`,
+        });
+        intraduplicates.add(idx);
+        skipped++;
+      } else {
+        phonesSeen.set(norm, idx + 2);
+      }
+    });
+
+    // 2. Detect duplicates against the existing database
+    const uniquePhones = [...phonesSeen.keys()]; // only non-intra-duplicate phones
+    let existingPhoneMap = {}; // normalised phone → existing lead name
+    if (uniquePhones.length > 0) {
+      // Build regex patterns that match normalised forms
+      const existingLeads = await Lead.find(
+        { phone: { $in: leadData.filter((_, i) => !intraduplicates.has(i)).map(ld => ld.phone) } },
+        { phone: 1, name: 1 }
+      ).lean();
+      existingLeads.forEach(el => {
+        existingPhoneMap[normalisePhone(el.phone)] = el.name;
+      });
+    }
+
+    // 3. Build the final insert list, skipping both kinds of duplicates
+    const dbduplicateIndices = new Set();
+    leadData.forEach((ld, idx) => {
+      if (intraduplicates.has(idx)) return; // already flagged
+      const norm = normalisePhone(ld.phone);
+      if (existingPhoneMap[norm]) {
+        rowErrors.push({
+          row: idx + 2,
+          field: 'Phone',
+          message: `Phone "${ld.phone}" already exists in the CRM (lead: "${existingPhoneMap[norm]}"). Skipping duplicate.`,
+        });
+        dbduplicateIndices.add(idx);
+        skipped++;
+      }
+    });
+
+    const finalLeads = leadData.filter((_, idx) =>
+      !intraduplicates.has(idx) && !dbduplicateIndices.has(idx)
+    );
+    // ── End duplicate detection ────────────────────────────────────────
+
     let inserted = 0;
-    if (leadData.length > 0) {
-      const result = await Lead.insertMany(leadData, { ordered: false });
+    let duplicates = intraduplicates.size + dbduplicateIndices.size;
+    if (finalLeads.length > 0) {
+      const result = await Lead.insertMany(finalLeads, { ordered: false });
       inserted = result.length;
     }
 
@@ -215,6 +281,7 @@ export async function POST(request) {
       success: true,
       inserted,
       skipped,
+      duplicates,
       rowErrors,          // array of { row, field, message }
       total: lines.length - 1,
     });
