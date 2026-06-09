@@ -465,17 +465,6 @@ function LeadCard({ lead, onLog, onStatusChange, onReschedule, router }) {
             WhatsApp
           </a>
 
-          {/* Log interaction */}
-          <button
-            onClick={() => onLog(localLead)}
-            className="flex items-center gap-1.5 px-3 py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 text-xs font-semibold rounded-lg transition-colors cursor-pointer"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
-            </svg>
-            Log
-          </button>
-
           {/* Reschedule */}
           <div className="relative">
             <button
@@ -495,6 +484,18 @@ function LeadCard({ lead, onLog, onStatusChange, onReschedule, router }) {
               />
             )}
           </div>
+
+          {/* Log interaction */}
+          <button
+            onClick={() => onLog(localLead)}
+            className="flex items-center gap-1.5 px-3 py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 text-xs font-semibold rounded-lg transition-colors cursor-pointer"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+            </svg>
+            Log
+          </button>
+
 
           {/* Status change */}
           <div className="relative ml-auto">

@@ -1843,7 +1843,6 @@ function BulkAssignModal({ isOpen, onClose, selectedLeads, onSuccess }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [warning, setWarning] = useState('');
 
   useEffect(() => {
     if (isOpen) {
@@ -1873,7 +1872,6 @@ function BulkAssignModal({ isOpen, onClose, selectedLeads, onSuccess }) {
 
     setLoading(true);
     setError('');
-    setWarning('');
 
     try {
       const leadIds = Array.from(selectedLeads);
@@ -1889,14 +1887,8 @@ function BulkAssignModal({ isOpen, onClose, selectedLeads, onSuccess }) {
       const data = await response.json();
 
       if (response.ok) {
-        if (data.skipped > 0) {
-          setWarning(`${data.assigned} leads assigned. ${data.skipped} leads were skipped (already assigned).`);
-        }
-        setTimeout(() => {
-          onSuccess();
-          setAssignedTo('');
-          setWarning('');
-        }, 2000);
+        onSuccess();
+        setAssignedTo('');
       } else {
         setError(data.error || 'Failed to assign leads');
       }
@@ -1908,7 +1900,7 @@ function BulkAssignModal({ isOpen, onClose, selectedLeads, onSuccess }) {
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Assign Leads to Caller" size="lg">
+    <Modal isOpen={isOpen} onClose={onClose} title="Assign / Reassign Leads" size="lg">
       <form onSubmit={handleAssign} className="space-y-5">
         {error && (
           <div className="flex items-start gap-2.5 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
@@ -1916,19 +1908,9 @@ function BulkAssignModal({ isOpen, onClose, selectedLeads, onSuccess }) {
           </div>
         )}
 
-        {warning && (
-          <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded">
-            {warning}
-          </div>
-        )}
-
         <div className="text-sm text-gray-600 mb-4">
-          Assigning <strong>{selectedLeads.size}</strong> selected lead{selectedLeads.size !== 1 ? 's' : ''}.
-        </div>
-
-        <div className="flex items-start gap-2.5 bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-lg text-sm">
-          <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" /></svg>
-          <p><strong>Duplicate Prevention:</strong> Only unassigned leads will be assigned. Leads already assigned to other callers will be skipped automatically.</p>
+          Assigning <strong>{selectedLeads.size}</strong> selected lead{selectedLeads.size !== 1 ? 's' : ''} to a new user.
+          Already-assigned leads will be <strong>reassigned</strong>.
         </div>
 
         <div>

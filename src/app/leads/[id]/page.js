@@ -767,11 +767,27 @@ function EditLeadForm({ lead, onSave, onCancel }) {
     status: lead.status || 'New',
     priority: lead.priority || 'Medium',
     notes: lead.notes || '',
+    assignedTo: lead.assignedTo?._id || lead.assignedTo || '',
   });
+  const [users, setUsers] = useState([]);
+
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const res = await fetch('/api/admin/users', { credentials: 'include' });
+        if (res.ok) {
+          const data = await res.json();
+          setUsers((data.users || []).filter(u => u.isActive));
+        }
+      } catch {}
+    };
+    fetchUsers();
+  }, []);
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSave(formData);
+    const payload = { ...formData, assignedTo: formData.assignedTo || null };
+    onSave(payload);
   };
 
   const handleChange = (e) => {
@@ -875,6 +891,27 @@ function EditLeadForm({ lead, onSave, onCancel }) {
             <option value="Low">Low</option>
             <option value="Medium">Medium</option>
             <option value="High">High</option>
+          </select>
+        </div>
+
+        {/* Assigned To — full width row */}
+        <div className="md:col-span-2">
+          <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+            Assigned To
+            <span className="ml-1.5 text-xs font-normal text-slate-400">(reassign or unassign)</span>
+          </label>
+          <select
+            name="assignedTo"
+            className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors text-sm bg-white"
+            value={formData.assignedTo}
+            onChange={handleChange}
+          >
+            <option value="">— Unassigned —</option>
+            {users.map(u => (
+              <option key={u._id} value={u._id}>
+                {u.name} ({u.email})
+              </option>
+            ))}
           </select>
         </div>
       </div>
